@@ -2,31 +2,26 @@
 <PluginData xmlns:xsd="http://www.w3.org/2001/XMLSchema" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:type="GitHubPlugin">
 
     <!-- The ID of your plugin, never change this -->
-    <Id>A061FC6C-713E-42CD-B413-151AC8A5074C</Id>
+    <Id>C88741F0-0AA5-4263-BD78-5D21467A84D3</Id>
 
     <!-- GitHub repository ID -->
-    <RepoId>todo-github-user/project-name</RepoId>
+    <RepoId>viktor-ferenczi/se-concealment</RepoId>
 
     <!-- The name of your plugin that will appear in the plugin list -->
-    <FriendlyName>TODO PluginTemplateClient</FriendlyName>
+    <FriendlyName>Concealment</FriendlyName>
 
     <!-- The author name that you want to appear in the plugin list -->
-    <Author>TODO Author Name</Author>
+    <Author>viktor-ferenczi</Author>
 
     <!-- Optional tooltip for the plugin in the plugin list -->
-    <Tooltip>TODO Short description</Tooltip>
+    <Tooltip>Server-side concealment for Magnetar.</Tooltip>
 
     <!-- Optional plugin description. If omitted, this will be the same as the Tooltip. 1000 characters max. -->
-    <Description>TODO Long description, multiple lines.
-
-        This text is shown on the plugin details panel in a scrollable text box.
-
-        You can use links here, players can click on them. For example, add a Discord invite.
-    </Description>
+    <Description>Concealment is a server-side Space Engineers plugin for Magnetar.</Description>
 
     <!-- Only source code in the Directory entries listed in SourceDirectories is compiled. Exclude any test projects or similar. -->
     <SourceDirectories>
-        <Directory>ClientPlugin</Directory>
+        <Directory>ServerPlugin</Directory>
         <Directory>Shared</Directory>
     </SourceDirectories>
 
@@ -70,6 +65,6 @@
     </AlternateVersions> 
     -->
 
-    <!-- Feel free to delete the comments and the commented out optional blocks once you're done. -->
+    <!-- Feel free to delete the comments and the commented out optional blocks once you're done -->
 
 </PluginData>

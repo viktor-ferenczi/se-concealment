@@ -23,13 +23,11 @@ PT_PROJECT_NAME = r"^([A-Z][a-z_0-9]+)+$"
 RX_PROJECT_NAME = re.compile(PT_PROJECT_NAME)
 
 PROJECT_NAMES = (
-    "ClientPlugin",
     "ServerPlugin",
     "Shared",
 )
 
-# Steam app ids of the games providing the build references
-GAME_APP_ID = "244850"  # Space Engineers (Bin64)
+# Steam app id providing the server build references
 DEDICATED_APP_ID = "298740"  # Space Engineers Dedicated Server (DedicatedServer64)
 
 
@@ -100,8 +98,7 @@ def _rename_project(name: str) -> None:
         print("Solution:")
         for filename in (
             f'{TEMPLATE_NAME}.sln',
-            f'{TEMPLATE_NAME}Client.xml',
-            f'{TEMPLATE_NAME}Server.xml',
+            f'{TEMPLATE_NAME}.xml',
         ):
             if os.path.exists(filename):
                 yield filename, filename
@@ -260,11 +257,8 @@ def _get_install_locations(vdf_path: str, ids: list[str]) -> dict[str, str | Non
     return game_install
 
 
-def _update_props(
-    game_dir: str | None = None,
-    server_dir: str | None = None,
-) -> None:
-    if not game_dir and not server_dir:
+def _update_props(server_dir: str | None = None) -> None:
+    if not server_dir:
         return
 
     parser = ET.XMLParser(target=ET.TreeBuilder(insert_comments=True))
@@ -273,15 +267,9 @@ def _update_props(
     group = root.find("PropertyGroup")
     assert group is not None
 
-    if game_dir:
-        bin64 = group.find("Bin64")
-        assert bin64 is not None
-        bin64.text = str(Path(game_dir) / "Bin64")
-
-    if server_dir:
-        dedicated64 = group.find("Dedicated64")
-        assert dedicated64 is not None
-        dedicated64.text = str(Path(server_dir) / "DedicatedServer64")
+    dedicated64 = group.find("Dedicated64")
+    assert dedicated64 is not None
+    dedicated64.text = str(Path(server_dir) / "DedicatedServer64")
 
     tree.write("Directory.Build.props")
 
@@ -305,19 +293,14 @@ def main() -> None:
             return
 
         vdf_path = str(Path(steam_path) / "steamapps" / "libraryfolders.vdf")
-        locations = _get_install_locations(vdf_path, [GAME_APP_ID, DEDICATED_APP_ID])
-
-        if locations[GAME_APP_ID] is not None:
-            print(f"Found Space Engineers under {locations[GAME_APP_ID]}")
-        else:
-            print("Could not find Space Engineers install location.")
+        locations = _get_install_locations(vdf_path, [DEDICATED_APP_ID])
 
         if locations[DEDICATED_APP_ID] is not None:
             print(f"Found Dedicated Server under {locations[DEDICATED_APP_ID]}")
         else:
             print("Could not find Dedicated Server install location.")
 
-        _update_props(locations[GAME_APP_ID], locations[DEDICATED_APP_ID])
+        _update_props(locations[DEDICATED_APP_ID])
     else:
         print("Please add the paths manually to 'Directory.Build.props'")
 

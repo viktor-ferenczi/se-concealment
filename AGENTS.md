@@ -3,7 +3,6 @@
 Use the following skill for plugin development, but do **not** limit yourself only to these:
 - `se-dev-plugin` for all plugins
 - `se-dev-plugin-sdk` for the Plugin SDK
-- `se-dev-game-code` for client plugins
 - `se-dev-server-code` for server plugins
 
 Depending on the plugin, the following skills may also be related and useful:

@@ -32,8 +32,7 @@ public class PluginConfig : IPluginConfig
     private bool enabled = true;
     private bool detectCodeChanges = true;
     // TODO: Implement your config fields here
-    // The default values here will apply to Client and Dedicated.
-    // The default values for Torch are defined in TorchPlugin.
+    // The default values here apply to the dedicated server plugin.
 
     public bool Enabled
     {
