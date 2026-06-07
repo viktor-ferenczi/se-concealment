@@ -29,8 +29,10 @@ public sealed class ConcealGroup
     public List<MyCubeGrid> Grids { get; }
     public List<MyMedicalRoom> MedicalRooms { get; } = new List<MyMedicalRoom>();
     public List<MyCryoChamber> CryoChambers { get; } = new List<MyCryoChamber>();
+    public HashSet<long> ProductionCatchupBlockIds { get; } = new HashSet<long>();
     public event Action<ConcealGroup> Closing;
     internal int ProxyId = -1;
+    internal long ConcealedAtTick;
 
     public ConcealGroup(MyGroups<MyCubeGrid, MyGridPhysicalGroupData>.Group group)
     {

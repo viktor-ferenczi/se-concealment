@@ -28,6 +28,9 @@ namespace ServerPlugin;
 
 public sealed class ConcealmentManager : IDisposable
 {
+    private const long ProductionCatchupTicks = 18000;
+    private const string ProductivityUpgrade = "Productivity";
+
     private static readonly MethodInfo OnEntityClosingMethod = typeof(MyEntityComponentUpdater).GetMethod(
         "OnEntityClosing",
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
@@ -39,6 +42,9 @@ public sealed class ConcealmentManager : IDisposable
     private readonly IPluginLogger log;
     private readonly List<ConcealGroup> intersectGroups = new List<ConcealGroup>();
     private readonly Dictionary<long, Timer> keepAliveTimers = new Dictionary<long, Timer>();
+    private readonly Dictionary<long, ProductionCatchupBoost> productionCatchupBoosts =
+        new Dictionary<long, ProductionCatchupBoost>();
+
     private readonly MyDynamicAABBTreeD concealedAabbTree =
         new MyDynamicAABBTreeD(MyConstants.GAME_PRUNING_STRUCTURE_AABB_EXTENSION);
 
@@ -70,6 +76,7 @@ public sealed class ConcealmentManager : IDisposable
 
         InitializeSessionFeatures();
         Dynamic.Update();
+        UpdateProductionCatchups();
 
         if (initialized && !ready && plugin.Tick >= readyTick)
             ready = true;
@@ -177,6 +184,7 @@ public sealed class ConcealmentManager : IDisposable
     public bool IsExcluded(ConcealGroup group)
     {
         var pirateId = MyPirateAntennas.GetPiratesId();
+        var keepActiveProductionRevealed = Config.ProductionConcealment == ProductionConcealmentMode.Off;
 
         foreach (var grid in group.Grids)
         {
@@ -204,7 +212,7 @@ public sealed class ConcealmentManager : IDisposable
             foreach (var block in grid.GetFatBlocks())
             {
                 if (block is MyRefinery refinery &&
-                    !Config.ConcealProduction &&
+                    keepActiveProductionRevealed &&
                     !refinery.InputInventory.Empty() &&
                     refinery.IsFunctional &&
                     refinery.Enabled)
@@ -215,7 +223,7 @@ public sealed class ConcealmentManager : IDisposable
                     return;
                 }
 
-                if (block is MyProductionBlock production && !Config.ConcealProduction && production.IsProducing)
+                if (block is MyProductionBlock production && keepActiveProductionRevealed && production.IsProducing)
                 {
                     log.Debug("{0} exempted production ({1} active)", group.GridNames, production.CustomName);
                     exclude = true;
@@ -252,7 +260,11 @@ public sealed class ConcealmentManager : IDisposable
         foreach (var timer in keepAliveTimers.Values)
             timer.Dispose();
 
+        foreach (var boost in productionCatchupBoosts.Values.ToArray())
+            RemoveProductionCatchupBoost(boost);
+
         keepAliveTimers.Clear();
+        productionCatchupBoosts.Clear();
     }
 
     private void InitializeSessionFeatures()
@@ -296,6 +308,10 @@ public sealed class ConcealmentManager : IDisposable
 
         log.Debug("Concealing grids: {0}", group.GridNames);
 
+        RemoveProductionCatchups(group);
+        CacheProductionCatchupBlocks(group);
+        group.ConcealedAtTick = plugin.Tick;
+
         group.Conceal(removeUpdatingComponents);
         group.UpdateAabb();
         var aabb = group.WorldAabb;
@@ -329,6 +345,7 @@ public sealed class ConcealmentManager : IDisposable
         log.Debug("Revealing grids: {0}", group.GridNames);
 
         group.Reveal(componentUpdater);
+        ApplyProductionCatchup(group);
         ConcealedGroups.Remove(group);
 
         if (group.ProxyId >= 0)
@@ -417,6 +434,110 @@ public sealed class ConcealmentManager : IDisposable
         return players.Select(p => new BoundingSphereD(p.GetPosition(), distance)).ToList();
     }
 
+    private void CacheProductionCatchupBlocks(ConcealGroup group)
+    {
+        group.ProductionCatchupBlockIds.Clear();
+
+        if (Config.ProductionConcealment != ProductionConcealmentMode.Approximate)
+            return;
+
+        foreach (var block in group.Grids.SelectMany(grid => grid.GetFatBlocks()).OfType<MyProductionBlock>())
+            if (IsProductionActiveForCatchup(block))
+                group.ProductionCatchupBlockIds.Add(block.EntityId);
+    }
+
+    private static bool IsProductionActiveForCatchup(MyProductionBlock block)
+    {
+        if (block == null || !block.IsFunctional || !block.Enabled)
+            return false;
+
+        if (block.IsProducing)
+            return true;
+
+        return block is MyRefinery refinery && !refinery.InputInventory.Empty();
+    }
+
+    private void ApplyProductionCatchup(ConcealGroup group)
+    {
+        if (Config.ProductionConcealment != ProductionConcealmentMode.Approximate ||
+            group.ProductionCatchupBlockIds.Count == 0)
+        {
+            return;
+        }
+
+        var offlineTicks = Math.Max(0, plugin.Tick - group.ConcealedAtTick);
+        if (offlineTicks == 0)
+            return;
+
+        var boost = (float)offlineTicks / ProductionCatchupTicks;
+        var endTick = plugin.Tick + ProductionCatchupTicks;
+
+        foreach (var blockId in group.ProductionCatchupBlockIds)
+        {
+            if (!MyEntities.TryGetEntityById(blockId, out MyEntity entity) || !(entity is MyProductionBlock production))
+                continue;
+
+            if (productionCatchupBoosts.TryGetValue(blockId, out var existing))
+                RemoveProductionCatchupBoost(existing);
+
+            AddProductivityBoost(production, boost);
+            productionCatchupBoosts[blockId] = new ProductionCatchupBoost(blockId, boost, endTick);
+        }
+
+        log.Info("Applied {0:P0} production catch-up boost for {1} ticks to {2} blocks in {3}.",
+            boost,
+            ProductionCatchupTicks,
+            group.ProductionCatchupBlockIds.Count,
+            group.GridNames);
+    }
+
+    private void RemoveProductionCatchups(ConcealGroup group)
+    {
+        foreach (var block in group.Grids.SelectMany(grid => grid.GetFatBlocks()).OfType<MyProductionBlock>())
+        {
+            if (!productionCatchupBoosts.TryGetValue(block.EntityId, out var boost))
+                continue;
+
+            RemoveProductionCatchupBoost(boost);
+            productionCatchupBoosts.Remove(block.EntityId);
+        }
+    }
+
+    private void UpdateProductionCatchups()
+    {
+        if (productionCatchupBoosts.Count == 0)
+            return;
+
+        foreach (var boost in productionCatchupBoosts.Values.ToArray())
+        {
+            if (plugin.Tick < boost.EndTick)
+                continue;
+
+            RemoveProductionCatchupBoost(boost);
+            productionCatchupBoosts.Remove(boost.EntityId);
+        }
+    }
+
+    private static void AddProductivityBoost(MyProductionBlock block, float boost)
+    {
+        if (!block.UpgradeValues.ContainsKey(ProductivityUpgrade))
+            block.UpgradeValues[ProductivityUpgrade] = 0f;
+
+        block.UpgradeValues[ProductivityUpgrade] += boost;
+    }
+
+    private static void RemoveProductionCatchupBoost(ProductionCatchupBoost boost)
+    {
+        if (!MyEntities.TryGetEntityById(boost.EntityId, out MyEntity entity) || !(entity is MyProductionBlock block))
+            return;
+
+        if (!block.UpgradeValues.ContainsKey(ProductivityUpgrade))
+            return;
+
+        var value = block.UpgradeValues[ProductivityUpgrade] - boost.Boost;
+        block.UpgradeValues[ProductivityUpgrade] = Math.Abs(value) < 0.0001f ? 0f : value;
+    }
+
     private static BoundingBoxD GetGroupWorldAabb(MyGroups<MyCubeGrid, MyGridPhysicalGroupData>.Group group)
     {
         var first = true;
@@ -453,5 +574,19 @@ public sealed class ConcealmentManager : IDisposable
             onEntityClosingAction = (Action<MyEntity>)OnEntityClosingMethod.CreateDelegate(typeof(Action<MyEntity>), componentUpdater);
 
         return onEntityClosingAction;
+    }
+
+    private sealed class ProductionCatchupBoost
+    {
+        public ProductionCatchupBoost(long entityId, float boost, long endTick)
+        {
+            EntityId = entityId;
+            Boost = boost;
+            EndTick = endTick;
+        }
+
+        public long EntityId { get; }
+        public float Boost { get; }
+        public long EndTick { get; }
     }
 }

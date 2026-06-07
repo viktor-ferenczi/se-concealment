@@ -16,6 +16,18 @@ public enum DynamicConcealType
     None
 }
 
+public enum ProductionConcealmentMode
+{
+    [EnumCaption("Off - keep active production revealed")]
+    Off = 0,
+
+    [EnumCaption("Conceal - production pauses while hidden")]
+    Conceal,
+
+    [EnumCaption("Approximate - catch up after reveal")]
+    Approximate
+}
+
 public struct DynamicConcealmentRule
 {
     [StructMember("Displayed rule name")]
@@ -50,20 +62,21 @@ public class PluginConfig : PluginSdk.Config.PluginConfig, IPluginConfig
     [BoolOption("Check patched game code for expected IL changes", Parent = "general")]
     public bool DetectCodeChanges { get; set => SetField(ref field, value); } = true;
 
-    [DoubleOption(0, 10000000, "Conceal grids farther than this distance from every online player", Parent = "general-timing")]
+    [DoubleOption(0, 10000000, "Hide eligible grid groups when every online player is farther away than this many meters.", Parent = "general-timing")]
     public double ConcealDistance { get; set => SetField(ref field, value); } = 15000;
 
-    [IntOption(1, 864000, "Ticks between concealment scans", Parent = "general-timing")]
+    [IntOption(1, 864000, "Simulation ticks between scans that hide eligible grids. At 60 TPS, 18000 ticks is 5 minutes.", Parent = "general-timing")]
     public int ConcealInterval { get; set => SetField(ref field, value); } = 18000;
 
-    [DoubleOption(0, 10000000, "Reveal concealed grids within this distance of an online player", Parent = "general-timing")]
+    [DoubleOption(0, 10000000, "Reveal concealed grid groups when an online player is within this many meters.", Parent = "general-timing")]
     public double RevealDistance { get; set => SetField(ref field, value); } = 12000;
 
-    [IntOption(1, 864000, "Ticks between reveal scans", Parent = "general-timing")]
+    [IntOption(1, 864000, "Simulation ticks between scans that reveal hidden grids near players.", Parent = "general-timing")]
     public int RevealInterval { get; set => SetField(ref field, value); } = 60;
 
-    [BoolOption("Allow grids with active production/refineries to be concealed", Parent = "general-rules")]
-    public bool ConcealProduction { get; set => SetField(ref field, value); } = true;
+    [EnumOption("Active assembler/refinery handling. Off keeps active production grids revealed. Conceal hides them and production pauses. Approximate hides them, then applies a 18000-tick productivity boost on reveal based on ticks spent hidden.", Parent = "general-rules")]
+    public ProductionConcealmentMode ProductionConcealment { get; set => SetField(ref field, value); } =
+        ProductionConcealmentMode.Approximate;
 
     [BoolOption("Allow pirate-owned grids to be concealed", Parent = "general-rules")]
     public bool ConcealPirates { get; set => SetField(ref field, value); }
