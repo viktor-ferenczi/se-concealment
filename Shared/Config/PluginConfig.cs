@@ -51,19 +51,19 @@ public class PluginConfig : PluginSdk.Config.PluginConfig, IPluginConfig
     public bool DetectCodeChanges { get; set => SetField(ref field, value); } = true;
 
     [DoubleOption(0, 10000000, "Conceal grids farther than this distance from every online player", Parent = "general-timing")]
-    public double ConcealDistance { get; set => SetField(ref field, value); } = 75000;
+    public double ConcealDistance { get; set => SetField(ref field, value); } = 15000;
 
     [IntOption(1, 864000, "Ticks between concealment scans", Parent = "general-timing")]
-    public int ConcealInterval { get; set => SetField(ref field, value); } = 3600;
+    public int ConcealInterval { get; set => SetField(ref field, value); } = 18000;
 
     [DoubleOption(0, 10000000, "Reveal concealed grids within this distance of an online player", Parent = "general-timing")]
-    public double RevealDistance { get; set => SetField(ref field, value); } = 50000;
+    public double RevealDistance { get; set => SetField(ref field, value); } = 12000;
 
     [IntOption(1, 864000, "Ticks between reveal scans", Parent = "general-timing")]
     public int RevealInterval { get; set => SetField(ref field, value); } = 60;
 
     [BoolOption("Allow grids with active production/refineries to be concealed", Parent = "general-rules")]
-    public bool ConcealProduction { get; set => SetField(ref field, value); }
+    public bool ConcealProduction { get; set => SetField(ref field, value); } = true;
 
     [BoolOption("Allow pirate-owned grids to be concealed", Parent = "general-rules")]
     public bool ConcealPirates { get; set => SetField(ref field, value); }
