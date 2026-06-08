@@ -49,3 +49,6 @@ ServerPlugin\Deploy.bat Concealment.dll ServerPlugin\bin\Debug\net10.0
 ```
 
 `Concealment.xml` is the MagnetarHub metadata file for server-side publication.
+
+Functionality is inspired by and reimplements the original Torch plugin
+Concealment by TorchAPI: https://github.com/TorchAPI/Concealment
