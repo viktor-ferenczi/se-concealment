@@ -74,9 +74,15 @@ public class PluginConfig : PluginSdk.Config.PluginConfig, IPluginConfig
     [IntOption(1, 864000, "Simulation ticks between scans that reveal hidden grids near players.", Parent = "general-timing")]
     public int RevealInterval { get; set => SetField(ref field, value); } = 60;
 
-    [EnumOption("Active assembler/refinery handling. Off keeps active production grids revealed. Conceal hides them and production pauses. Approximate hides them, then applies a 18000-tick productivity boost on reveal based on ticks spent hidden.", Parent = "general-rules")]
+    [EnumOption("Active assembler/refinery handling. Off keeps active production grids revealed. Conceal hides them and production pauses. Approximate hides them, then banks boost time on reveal so they catch up at higher speed while online.", Parent = "general-rules")]
     public ProductionConcealmentMode ProductionConcealment { get; set => SetField(ref field, value); } =
         ProductionConcealmentMode.Approximate;
+
+    [DoubleOption(1.0, 1000.0, "Approximate catch-up speed. Production runs this many times faster while boosting, drawing this many times more power. Concealed time divided by this level is how long the boost lasts online.", Parent = "general-rules")]
+    public double ProductionBoostLevel { get; set => SetField(ref field, value); } = 5.0;
+
+    [DoubleOption(0.0, 168.0, "Maximum banked boost time in hours of online catch-up. Boost banked above this limit is lost, capping how much catch-up can accumulate while concealed.", Parent = "general-rules")]
+    public double MaxBoostHours { get; set => SetField(ref field, value); } = 8.0;
 
     [BoolOption("Allow pirate-owned grids to be concealed", Parent = "general-rules")]
     public bool ConcealPirates { get; set => SetField(ref field, value); }

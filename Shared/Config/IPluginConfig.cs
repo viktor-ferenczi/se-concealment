@@ -16,6 +16,8 @@ public interface IPluginConfig : INotifyPropertyChanged
     double RevealDistance { get; set; }
     int RevealInterval { get; set; }
     ProductionConcealmentMode ProductionConcealment { get; set; }
+    double ProductionBoostLevel { get; set; }
+    double MaxBoostHours { get; set; }
     bool ConcealPirates { get; set; }
     bool RemoteControlKeepAliveAction { get; set; }
     double DynamicConcealQueryInterval { get; set; }

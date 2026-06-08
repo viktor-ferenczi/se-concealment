@@ -28,9 +28,6 @@ namespace ServerPlugin;
 
 public sealed class ConcealmentManager : IDisposable
 {
-    private const long ProductionCatchupTicks = 18000;
-    private const string ProductivityUpgrade = "Productivity";
-
     private static readonly MethodInfo OnEntityClosingMethod = typeof(MyEntityComponentUpdater).GetMethod(
         "OnEntityClosing",
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
@@ -42,13 +39,12 @@ public sealed class ConcealmentManager : IDisposable
     private readonly IPluginLogger log;
     private readonly List<ConcealGroup> intersectGroups = new List<ConcealGroup>();
     private readonly Dictionary<long, Timer> keepAliveTimers = new Dictionary<long, Timer>();
-    private readonly Dictionary<long, ProductionCatchupBoost> productionCatchupBoosts =
-        new Dictionary<long, ProductionCatchupBoost>();
 
     private readonly MyDynamicAABBTreeD concealedAabbTree =
         new MyDynamicAABBTreeD(MyConstants.GAME_PRUNING_STRUCTURE_AABB_EXTENSION);
 
     private Action<MyEntity> onEntityClosingAction;
+    private Action<MyObjectBuilder_Checkpoint> onSavingCheckpoint;
     private ulong counter;
     private bool initialized;
     private bool ready;
@@ -58,6 +54,7 @@ public sealed class ConcealmentManager : IDisposable
 
     public List<ConcealGroup> ConcealedGroups { get; } = new List<ConcealGroup>();
     public DynamicConcealmentManager Dynamic { get; }
+    public ProductionBoostManager Production { get; }
 
     private PluginConfig Config => plugin.ConfigData;
 
@@ -66,6 +63,7 @@ public sealed class ConcealmentManager : IDisposable
         this.plugin = plugin;
         log = plugin.Log;
         Dynamic = new DynamicConcealmentManager(plugin, harmony);
+        Production = new ProductionBoostManager(plugin, harmony);
         Config.PropertyChanged += ConfigOnPropertyChanged;
     }
 
@@ -76,7 +74,7 @@ public sealed class ConcealmentManager : IDisposable
 
         InitializeSessionFeatures();
         Dynamic.Update();
-        UpdateProductionCatchups();
+        Production.Update(plugin.Tick);
 
         if (initialized && !ready && plugin.Tick >= readyTick)
             ready = true;
@@ -132,9 +130,9 @@ public sealed class ConcealmentManager : IDisposable
 
         if (concealed > 0 && totalCount > 0)
             log.Info("{0}/{1} grids are concealed ({2:P}), {3} new.",
-                concealedCount + concealed,
+                concealedCount,
                 totalCount,
-                (concealedCount + concealed) / (float)totalCount,
+                concealedCount / (float)totalCount,
                 concealed);
 
         return concealed;
@@ -254,17 +252,18 @@ public sealed class ConcealmentManager : IDisposable
         Config.PropertyChanged -= ConfigOnPropertyChanged;
         Dynamic.Dispose();
 
+        if (MySession.Static != null && onSavingCheckpoint != null)
+            MySession.Static.OnSavingCheckpoint -= onSavingCheckpoint;
+
+        Production.Dispose();
+
         if (MyMultiplayer.Static != null)
             MyMultiplayer.Static.ClientJoined -= RevealCryoPod;
 
         foreach (var timer in keepAliveTimers.Values)
             timer.Dispose();
 
-        foreach (var boost in productionCatchupBoosts.Values.ToArray())
-            RemoveProductionCatchupBoost(boost);
-
         keepAliveTimers.Clear();
-        productionCatchupBoosts.Clear();
     }
 
     private void InitializeSessionFeatures()
@@ -284,6 +283,12 @@ public sealed class ConcealmentManager : IDisposable
 
         if (MyMultiplayer.Static != null)
             MyMultiplayer.Static.ClientJoined += RevealCryoPod;
+
+        if (MySession.Static != null)
+        {
+            onSavingCheckpoint = _ => Production.SaveNow();
+            MySession.Static.OnSavingCheckpoint += onSavingCheckpoint;
+        }
 
         initialized = true;
         Dynamic.Refresh();
@@ -308,8 +313,7 @@ public sealed class ConcealmentManager : IDisposable
 
         log.Debug("Concealing grids: {0}", group.GridNames);
 
-        RemoveProductionCatchups(group);
-        CacheProductionCatchupBlocks(group);
+        CacheProductionCatchupGrids(group);
         group.ConcealedAtTick = plugin.Tick;
 
         group.Conceal(removeUpdatingComponents);
@@ -345,7 +349,7 @@ public sealed class ConcealmentManager : IDisposable
         log.Debug("Revealing grids: {0}", group.GridNames);
 
         group.Reveal(componentUpdater);
-        ApplyProductionCatchup(group);
+        GrantProductionBoost(group);
         ConcealedGroups.Remove(group);
 
         if (group.ProxyId >= 0)
@@ -434,16 +438,16 @@ public sealed class ConcealmentManager : IDisposable
         return players.Select(p => new BoundingSphereD(p.GetPosition(), distance)).ToList();
     }
 
-    private void CacheProductionCatchupBlocks(ConcealGroup group)
+    private void CacheProductionCatchupGrids(ConcealGroup group)
     {
-        group.ProductionCatchupBlockIds.Clear();
+        group.ProductionCatchupGridIds.Clear();
 
         if (Config.ProductionConcealment != ProductionConcealmentMode.Approximate)
             return;
 
-        foreach (var block in group.Grids.SelectMany(grid => grid.GetFatBlocks()).OfType<MyProductionBlock>())
-            if (IsProductionActiveForCatchup(block))
-                group.ProductionCatchupBlockIds.Add(block.EntityId);
+        foreach (var grid in group.Grids)
+            if (grid.GetFatBlocks().OfType<MyProductionBlock>().Any(IsProductionActiveForCatchup))
+                group.ProductionCatchupGridIds.Add(grid.EntityId);
     }
 
     private static bool IsProductionActiveForCatchup(MyProductionBlock block)
@@ -457,85 +461,33 @@ public sealed class ConcealmentManager : IDisposable
         return block is MyRefinery refinery && !refinery.InputInventory.Empty();
     }
 
-    private void ApplyProductionCatchup(ConcealGroup group)
+    private void GrantProductionBoost(ConcealGroup group)
     {
         if (Config.ProductionConcealment != ProductionConcealmentMode.Approximate ||
-            group.ProductionCatchupBlockIds.Count == 0)
+            group.ProductionCatchupGridIds.Count == 0)
         {
             return;
         }
 
-        var offlineTicks = Math.Max(0, plugin.Tick - group.ConcealedAtTick);
-        if (offlineTicks == 0)
+        var concealedFrames = Math.Max(0, plugin.Tick - group.ConcealedAtTick);
+        if (concealedFrames == 0)
             return;
 
-        var boost = (float)offlineTicks / ProductionCatchupTicks;
-        var endTick = plugin.Tick + ProductionCatchupTicks;
-
-        foreach (var blockId in group.ProductionCatchupBlockIds)
+        var count = 0;
+        foreach (var grid in group.Grids)
         {
-            if (!MyEntities.TryGetEntityById(blockId, out MyEntity entity) || !(entity is MyProductionBlock production))
+            if (!group.ProductionCatchupGridIds.Contains(grid.EntityId))
                 continue;
 
-            if (productionCatchupBoosts.TryGetValue(blockId, out var existing))
-                RemoveProductionCatchupBoost(existing);
-
-            AddProductivityBoost(production, boost);
-            productionCatchupBoosts[blockId] = new ProductionCatchupBoost(blockId, boost, endTick);
+            Production.GrantBoost(grid, concealedFrames);
+            count++;
         }
 
-        log.Info("Applied {0:P0} production catch-up boost for {1} ticks to {2} blocks in {3}.",
-            boost,
-            ProductionCatchupTicks,
-            group.ProductionCatchupBlockIds.Count,
-            group.GridNames);
-    }
-
-    private void RemoveProductionCatchups(ConcealGroup group)
-    {
-        foreach (var block in group.Grids.SelectMany(grid => grid.GetFatBlocks()).OfType<MyProductionBlock>())
-        {
-            if (!productionCatchupBoosts.TryGetValue(block.EntityId, out var boost))
-                continue;
-
-            RemoveProductionCatchupBoost(boost);
-            productionCatchupBoosts.Remove(block.EntityId);
-        }
-    }
-
-    private void UpdateProductionCatchups()
-    {
-        if (productionCatchupBoosts.Count == 0)
-            return;
-
-        foreach (var boost in productionCatchupBoosts.Values.ToArray())
-        {
-            if (plugin.Tick < boost.EndTick)
-                continue;
-
-            RemoveProductionCatchupBoost(boost);
-            productionCatchupBoosts.Remove(boost.EntityId);
-        }
-    }
-
-    private static void AddProductivityBoost(MyProductionBlock block, float boost)
-    {
-        if (!block.UpgradeValues.ContainsKey(ProductivityUpgrade))
-            block.UpgradeValues[ProductivityUpgrade] = 0f;
-
-        block.UpgradeValues[ProductivityUpgrade] += boost;
-    }
-
-    private static void RemoveProductionCatchupBoost(ProductionCatchupBoost boost)
-    {
-        if (!MyEntities.TryGetEntityById(boost.EntityId, out MyEntity entity) || !(entity is MyProductionBlock block))
-            return;
-
-        if (!block.UpgradeValues.ContainsKey(ProductivityUpgrade))
-            return;
-
-        var value = block.UpgradeValues[ProductivityUpgrade] - boost.Boost;
-        block.UpgradeValues[ProductivityUpgrade] = Math.Abs(value) < 0.0001f ? 0f : value;
+        if (count > 0)
+            log.Info("Banked {0} ticks of production catch-up for {1} grids in {2}.",
+                concealedFrames,
+                count,
+                group.GridNames);
     }
 
     private static BoundingBoxD GetGroupWorldAabb(MyGroups<MyCubeGrid, MyGridPhysicalGroupData>.Group group)
@@ -574,19 +526,5 @@ public sealed class ConcealmentManager : IDisposable
             onEntityClosingAction = (Action<MyEntity>)OnEntityClosingMethod.CreateDelegate(typeof(Action<MyEntity>), componentUpdater);
 
         return onEntityClosingAction;
-    }
-
-    private sealed class ProductionCatchupBoost
-    {
-        public ProductionCatchupBoost(long entityId, float boost, long endTick)
-        {
-            EntityId = entityId;
-            Boost = boost;
-            EndTick = endTick;
-        }
-
-        public long EntityId { get; }
-        public float Boost { get; }
-        public long EndTick { get; }
     }
 }
