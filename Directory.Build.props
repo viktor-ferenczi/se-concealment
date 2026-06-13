@@ -8,7 +8,7 @@
         <!-- Folder containing SpaceEngineersDedicated.exe.
              Fill the path between the tags to override; leave empty to use the
              platform-specific auto-detection below. -->
-        <Dedicated64>/home/owendb/.local/share/Steam/steamapps/common/SpaceEngineersDedicatedServer/DedicatedServer64</Dedicated64>
+        <Dedicated64 />
     </PropertyGroup>
 
     <!-- User home, resolved once for the Linux auto-detection below -->
