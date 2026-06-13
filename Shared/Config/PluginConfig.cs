@@ -1,5 +1,3 @@
-#if !TORCH
-
 using System.Collections.Generic;
 using System.Xml.Serialization;
 using PluginSdk.Config;
@@ -103,5 +101,3 @@ public class PluginConfig : PluginSdk.Config.PluginConfig, IPluginConfig
     public List<DynamicConcealmentRule> DynamicConcealment { get; set => SetField(ref field, value); } =
         new List<DynamicConcealmentRule>();
 }
-
-#endif

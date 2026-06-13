@@ -1,5 +1,3 @@
-#if !TORCH
-
 using System;
 using System.Runtime.CompilerServices;
 using PluginSdk.Logging;
@@ -58,5 +56,3 @@ public class PluginLogger : LogFormatter, IPluginLogger
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public void Critical(string message, params object[] data) => Critical(null, message, data);
 }
-
-#endif
