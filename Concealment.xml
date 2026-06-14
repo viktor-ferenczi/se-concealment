@@ -11,13 +11,25 @@
     <FriendlyName>Concealment</FriendlyName>
 
     <!-- The author name that you want to appear in the plugin list -->
-    <Author>viktor-ferenczi</Author>
+    <Author>Viktor</Author>
 
     <!-- Optional tooltip for the plugin in the plugin list -->
-    <Tooltip>Server-side concealment for Magnetar.</Tooltip>
+    <Tooltip>Stops the simulation of grids if far away from all online players</Tooltip>
 
     <!-- Optional plugin description. If omitted, this will be the same as the Tooltip. 1000 characters max. -->
-    <Description>Concealment is a server-side Space Engineers plugin for Magnetar.</Description>
+    <Description>
+        Concealment is a server-side Space Engineers plugin for Magnetar that reduces
+        dedicated server load by skipping work that only matters on a graphical client.
+
+        It uses Harmony patches — for example disabling LCD text-panel visibility
+        updates on the dedicated server — to cut needless CPU and network overhead.
+        Patches are guarded by startup code-change detection so they fail-safe when a
+        Space Engineers update alters the patched methods, and the plugin is configured
+        through the Magnetar PluginSdk with its UI rendered by Quasar.
+
+        Functionality is inspired by and reimplements the original Torch plugin
+        Concealment by TorchAPI: https://github.com/TorchAPI/Concealment
+    </Description>
 
     <!-- Only source code in the Directory entries listed in SourceDirectories is compiled. Exclude any test projects or similar. -->
     <SourceDirectories>
@@ -25,46 +37,7 @@
         <Directory>Shared</Directory>
     </SourceDirectories>
 
-    <!-- To specify asset files to be copied onto disk, use the AssetFolder tag.
-    <AssetFolder>Project/Assets/</AssetFolder>
-    -->
-
-    <!-- To specify a required NuGet package, use either a list of PackageReference tags OR a Config tag.
-    <NuGetReferences>
-      <PackageReference Include="OVRSharp" Version="1.2.0" />
-    </NuGetReferences> 
-    -->
-
-    <!-- Optional tag that specifies what dependencies this plugin has. Dependencies will be automatically enabled when this plugin is enabled.
-    <DependencyIds>
-      <Id>TODO ID of the plugin this one depends on</Id>
-    </DependencyIds> 
-    -->
-
-    <!-- Optional tag that restricts the plugin to specific runtimes (case sensitive: NETFramework, NETCoreApp). List multiple, comma separated. If omitted, the runtime is detected from the compiled assembly.
-    <Runtimes>NETFramework,NETCoreApp</Runtimes>
-    -->
-
-    <!-- Optional tag that restricts the plugin to specific platforms (case sensitive: Windows, Linux). List multiple, comma separated. If omitted, the plugin loads on all platforms.
-    <Platforms>Windows,Linux</Platforms>
-    -->
-
-    <!-- Optional tag that specifies whether the plugin is hidden. Hidden plugins only appear when they are enabled or searched for in the search box.
-    <Hidden>true</Hidden>
-    -->
-
     <!-- The current plugin version's commit hash -->
     <Commit>TODO Git commit hash</Commit>
-
-    <!-- Optional list of alternate versions of the plugin, use it for test or custom builds
-    <AlternateVersions>
-      <Version>
-        <Name>Version Name</Name>
-        <Commit>Commit hash</Commit>
-      </Version>
-    </AlternateVersions> 
-    -->
-
-    <!-- Feel free to delete the comments and the commented out optional blocks once you're done -->
 
 </PluginData>
