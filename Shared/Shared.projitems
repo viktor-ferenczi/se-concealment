@@ -25,7 +25,6 @@
     <Compile Include="$(MSBuildThisFileDirectory)Tools\IgnoresAccessChecksToAttribute.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Tools\PreloaderHelpers.cs" />
     <Compile Include="$(MSBuildThisFileDirectory)Tools\TranspilerHelpers.cs" />
-    <Compile Include="$(MSBuildThisFileDirectory)Tools\WineDetector.cs" />
   </ItemGroup>
   <ItemGroup>
     <Content Include="$(MSBuildThisFileDirectory)..\README.md">

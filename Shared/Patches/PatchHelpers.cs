@@ -23,31 +23,22 @@ public static class PatchHelpers
             }
 #endif
 
-        if (Common.Plugin.Config.DetectCodeChanges && 
-            Environment.GetEnvironmentVariable("SE_PLUGIN_DISABLE_METHOD_VERIFICATION") == null &&
-            !WineDetector.IsRunningInWineOrProton())
+        log.Debug("Scanning for conflicting code changes");
+        try
         {
-            log.Debug("Scanning for conflicting code changes");
-            try
+            var codeChanges = EnsureCode.Verify().ToList();
+            if (codeChanges.Count != 0)
             {
-                var codeChanges = EnsureCode.Verify().ToList();
-                if (codeChanges.Count != 0)
-                {
-                    log.Critical("Detected conflicting code changes:");
-                    foreach (var codeChange in codeChanges)
-                        log.Critical(codeChange.ToString());
-                    return false;
-                }
-            }
-            catch (Exception ex)
-            {
-                log.Critical(ex, "Failed to scan for conflicting code changes");
+                log.Critical("Detected conflicting code changes:");
+                foreach (var codeChange in codeChanges)
+                    log.Critical(codeChange.ToString());
                 return false;
             }
         }
-        else
+        catch (Exception ex)
         {
-            log.Warning("Conflicting code change detection is disabled in plugin configuration");
+            log.Critical(ex, "Failed to scan for conflicting code changes");
+            return false;
         }
 
         log.Debug("Applying Harmony patches");

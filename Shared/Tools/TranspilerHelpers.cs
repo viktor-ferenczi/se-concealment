@@ -15,8 +15,6 @@ namespace Shared.Tools;
 
 public static class TranspilerHelpers
 {
-    private static readonly bool DisableCodeValidations = (Environment.GetEnvironmentVariable("SE_PLUGIN_DISABLE_METHOD_VERIFICATION") ?? "0") != "0";
-
     public delegate bool OpcodePredicate(OpCode opcode);
 
     public delegate bool CodeInstructionPredicate(CodeInstruction ci);
@@ -87,7 +85,7 @@ public static class TranspilerHelpers
     public static void VerifyCodeHash(this List<CodeInstruction> il, MethodBase patchedMethod, string expected)
     {
         var actual = il.Hash();
-        if (actual != expected && !DisableCodeValidations)
+        if (actual != expected)
         {
             throw new Exception($"Detected code change in {patchedMethod.Name}: expected {expected}, actual {actual}");
         }
