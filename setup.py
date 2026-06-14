@@ -6,6 +6,7 @@ Requires Python 3.12 or newer.
 
 import os
 import re
+import shutil
 import uuid
 import xml.etree.ElementTree as ET
 from pathlib import Path
@@ -274,8 +275,17 @@ def _update_props(server_dir: str | None = None) -> None:
     tree.write("Directory.Build.props")
 
 
+def _ensure_props() -> None:
+    """Copy the template to the local Directory.Build.props if it is missing."""
+    if not os.path.isfile("Directory.Build.props"):
+        shutil.copyfile("Directory.Build.props.template", "Directory.Build.props")
+        print("Created Directory.Build.props from Directory.Build.props.template")
+
+
 def main() -> None:
     """Run the setup."""
+
+    _ensure_props()
 
     if os.path.isfile(f"{TEMPLATE_NAME}.sln"):
         plugin_name = _input_plugin_name()
